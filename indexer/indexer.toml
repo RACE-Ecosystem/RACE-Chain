@@ -3,12 +3,12 @@
 #  - i.e OP Mainnet, OP Goerli, Base, Base Goerli, Zora, Zora Goerli, etc
 [chain]
 preset = $INDEXER_CHAIN_PRESET
-
 # L1 Config
 l1-polling-interval = 0
 l1-header-buffer-size = 0
 l1-confirmation-depth = 0
 l1-starting-height = 0
+
 
 # L2 Config
 l2-polling-interval = 0
@@ -16,15 +16,15 @@ l2-header-buffer-size = 0
 l2-confirmation-depth = 0
 
 [rpcs]
-l1-rpc = "${INDEXER_RPC_URL_L1}"
-l2-rpc = "${INDEXER_RPC_URL_L2}"
+l1-rpc = "https://eth-sepolia.g.alchemy.com/v2/BbFYFcwJfktJ1ZVXcshgEUt8FXJeNvEI"
+l2-rpc = "https://racetestnet.io"
 
 [db]
-host = "$INDEXER_DB_HOST"
-port = $INDEXER_DB_PORT
-user = "$INDEXER_DB_USER"
-password = "$INDEXER_DB_PASS"
-name = "$INDEXER_DB_NAME"
+host = "localhost"
+port = 5432
+user = "postgres"
+password = "Postgres"
+name = "blockscout"
 
 [http]
 host = "127.0.0.1"

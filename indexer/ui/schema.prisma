@@ -4,26 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model l1_bridged_tokens {
-  address           String              @id @db.VarChar
-  bridge_address    String              @db.VarChar
-  name              String              @db.VarChar
-  symbol            String              @db.VarChar
-  decimals          Int
-  l2_bridged_tokens l2_bridged_tokens[]
-}
-
-model l2_bridged_tokens {
-  address           String             @id @db.VarChar
-  bridge_address    String             @db.VarChar
-  l1_token_address  String?            @db.VarChar
-  name              String             @db.VarChar
-  symbol            String             @db.VarChar
-  decimals          Int
-  l1_bridged_tokens l1_bridged_tokens? @relation(fields: [l1_token_address], references: [address], onDelete: Cascade, onUpdate: NoAction)
+  url      = "postgresql://db_username:db_password@localhost:5434/db_name"
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -34,6 +15,9 @@ model l1_block_headers {
   timestamp          Int                  @unique
   rlp_bytes          String               @db.VarChar
   l1_contract_events l1_contract_events[]
+
+  @@index([number], map: "l1_block_headers_number")
+  @@index([timestamp], map: "l1_block_headers_timestamp")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -49,6 +33,10 @@ model l1_bridge_deposits {
   timestamp                 Int
   l1_bridge_messages        l1_bridge_messages      @relation(fields: [cross_domain_message_hash], references: [message_hash], onDelete: Cascade, onUpdate: NoAction)
   l1_transaction_deposits   l1_transaction_deposits @relation(fields: [transaction_source_hash], references: [source_hash], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([cross_domain_message_hash], map: "l1_bridge_deposits_cross_domain_message_hash")
+  @@index([from_address], map: "l1_bridge_deposits_from_address")
+  @@index([timestamp], map: "l1_bridge_deposits_timestamp")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -68,6 +56,10 @@ model l1_bridge_messages {
   l2_contract_events         l2_contract_events?     @relation(fields: [relayed_message_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
   l1_contract_events         l1_contract_events      @relation(fields: [sent_message_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
   l1_transaction_deposits    l1_transaction_deposits @relation(fields: [transaction_source_hash], references: [source_hash], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([from_address], map: "l1_bridge_messages_from_address")
+  @@index([timestamp], map: "l1_bridge_messages_timestamp")
+  @@index([transaction_source_hash], map: "l1_bridge_messages_transaction_source_hash")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -86,8 +78,12 @@ model l1_contract_events {
   l2_bridge_messages                                                                                l2_bridge_messages?
   l2_transaction_withdrawals_l2_transaction_withdrawals_finalized_l1_event_guidTol1_contract_events l2_transaction_withdrawals? @relation("l2_transaction_withdrawals_finalized_l1_event_guidTol1_contract_events")
   l2_transaction_withdrawals_l2_transaction_withdrawals_proven_l1_event_guidTol1_contract_events    l2_transaction_withdrawals? @relation("l2_transaction_withdrawals_proven_l1_event_guidTol1_contract_events")
-  legacy_state_batches                                                                              legacy_state_batches?
-  output_proposals                                                                                  output_proposals?
+
+  @@unique([block_hash, log_index])
+  @@index([block_hash], map: "l1_contract_events_block_hash")
+  @@index([contract_address], map: "l1_contract_events_contract_address")
+  @@index([event_signature], map: "l1_contract_events_event_signature")
+  @@index([timestamp], map: "l1_contract_events_timestamp")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -104,6 +100,10 @@ model l1_transaction_deposits {
   l1_bridge_deposits      l1_bridge_deposits?
   l1_bridge_messages      l1_bridge_messages?
   l1_contract_events      l1_contract_events  @relation(fields: [initiated_l1_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([from_address], map: "l1_transaction_deposits_from_address")
+  @@index([initiated_l1_event_guid], map: "l1_transaction_deposits_initiated_l1_event_guid")
+  @@index([timestamp], map: "l1_transaction_deposits_timestamp")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -114,6 +114,9 @@ model l2_block_headers {
   timestamp          Int
   rlp_bytes          String               @db.VarChar
   l2_contract_events l2_contract_events[]
+
+  @@index([number], map: "l2_block_headers_number")
+  @@index([timestamp], map: "l2_block_headers_timestamp")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -133,6 +136,10 @@ model l2_bridge_messages {
   l2_contract_events          l2_contract_events         @relation(fields: [sent_message_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
   l2_transaction_withdrawals  l2_transaction_withdrawals @relation(fields: [transaction_withdrawal_hash], references: [withdrawal_hash], onDelete: Cascade, onUpdate: NoAction)
   l2_bridge_withdrawals       l2_bridge_withdrawals?
+
+  @@index([from_address], map: "l2_bridge_messages_from_address")
+  @@index([timestamp], map: "l2_bridge_messages_timestamp")
+  @@index([transaction_withdrawal_hash], map: "l2_bridge_messages_transaction_withdrawal_hash")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -148,6 +155,10 @@ model l2_bridge_withdrawals {
   timestamp                   Int
   l2_bridge_messages          l2_bridge_messages         @relation(fields: [cross_domain_message_hash], references: [message_hash], onDelete: Cascade, onUpdate: NoAction)
   l2_transaction_withdrawals  l2_transaction_withdrawals @relation(fields: [transaction_withdrawal_hash], references: [withdrawal_hash], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([cross_domain_message_hash], map: "l2_bridge_withdrawals_cross_domain_message_hash")
+  @@index([from_address], map: "l2_bridge_withdrawals_from_address")
+  @@index([timestamp], map: "l2_bridge_withdrawals_timestamp")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -164,6 +175,12 @@ model l2_contract_events {
   l2_bridge_messages         l2_bridge_messages?
   l2_block_headers           l2_block_headers            @relation(fields: [block_hash], references: [hash], onDelete: Cascade, onUpdate: NoAction)
   l2_transaction_withdrawals l2_transaction_withdrawals?
+
+  @@unique([block_hash, log_index])
+  @@index([block_hash], map: "l2_contract_events_block_hash")
+  @@index([contract_address], map: "l2_contract_events_contract_address")
+  @@index([event_signature], map: "l2_contract_events_event_signature")
+  @@index([timestamp], map: "l2_contract_events_timestamp")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -185,21 +202,8 @@ model l2_transaction_withdrawals {
   l1_contract_events_l2_transaction_withdrawals_finalized_l1_event_guidTol1_contract_events l1_contract_events?    @relation("l2_transaction_withdrawals_finalized_l1_event_guidTol1_contract_events", fields: [finalized_l1_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
   l2_contract_events                                                                        l2_contract_events     @relation(fields: [initiated_l2_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
   l1_contract_events_l2_transaction_withdrawals_proven_l1_event_guidTol1_contract_events    l1_contract_events?    @relation("l2_transaction_withdrawals_proven_l1_event_guidTol1_contract_events", fields: [proven_l1_event_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
-}
 
-model legacy_state_batches {
-  index                     Int                @id
-  root                      String             @unique @db.VarChar
-  size                      Int
-  prev_total                Int
-  state_batch_appended_guid String             @unique @db.VarChar
-  l1_contract_events        l1_contract_events @relation(fields: [state_batch_appended_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
-}
-
-model output_proposals {
-  output_root          String             @id @db.VarChar
-  l2_output_index      Decimal            @unique @db.Decimal
-  l2_block_number      Decimal            @unique @db.Decimal
-  output_proposed_guid String             @unique @db.VarChar
-  l1_contract_events   l1_contract_events @relation(fields: [output_proposed_guid], references: [guid], onDelete: Cascade, onUpdate: NoAction)
+  @@index([from_address], map: "l2_transaction_withdrawals_from_address")
+  @@index([initiated_l2_event_guid], map: "l2_transaction_withdrawals_initiated_l2_event_guid")
+  @@index([timestamp], map: "l2_transaction_withdrawals_timestamp")
 }
