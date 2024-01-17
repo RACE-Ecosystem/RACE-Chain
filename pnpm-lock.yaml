@@ -336,8 +336,8 @@ importers:
         specifier: ^1.4.5
         version: 1.4.5(react@18.2.0)(typescript@5.2.2)(viem@1.18.0)
       abitype:
-        specifier: ^0.10.1
-        version: 0.10.1(typescript@5.2.2)
+        specifier: ^1.0.0
+        version: 1.0.0(typescript@5.2.2)
       glob:
         specifier: ^10.3.10
         version: 10.3.10
@@ -430,8 +430,8 @@ importers:
         specifier: ^0.34.6
         version: 0.34.6(vitest@0.34.2)
       abitype:
-        specifier: ^0.10.1
-        version: 0.10.1(typescript@5.2.2)
+        specifier: ^1.0.0
+        version: 1.0.0(typescript@5.2.2)
       isomorphic-fetch:
         specifier: ^3.0.0
         version: 3.0.0
@@ -5321,20 +5321,6 @@ packages:
     resolution: {integrity: sha512-j2afSsaIENvHZN2B8GOpF566vZ5WVk5opAiMTvWgaQT8DkbOqsTfvNAvHoRGU2zzP8cPoqys+xHTRDWW8L+/BA==}
     dev: true
 
-  /abitype@0.10.1(typescript@5.2.2):
-    resolution: {integrity: sha512-nFx5F2RniXGXw2Ci1uu6iDGnP/z3hW+H65G7cxrs5JDF3Ot9GuYkBJCRAB9EZ5QIi3dNByZaCrGFUn8LLkLQbw==}
-    peerDependencies:
-      typescript: '>=5.0.4'
-      zod: ^3 >=3.22.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-      zod:
-        optional: true
-    dependencies:
-      typescript: 5.2.2
-    dev: true
-
   /abitype@0.8.1(typescript@5.2.2):
     resolution: {integrity: sha512-n8Di6AWb3i7HnEkBvecU6pG0a5nj5YwMvdAIwPLsQK95ulRy/XS113s/RXvSfTX1iOQJYFrEO3/q4SMWu7OwTA==}
     peerDependencies:
@@ -5387,6 +5373,20 @@ packages:
     dependencies:
       typescript: 5.2.2
       zod: 3.22.4
+
+  /abitype@1.0.0(typescript@5.2.2):
+    resolution: {integrity: sha512-NMeMah//6bJ56H5XRj8QCV4AwuW6hB6zqz2LnhhLdcWVQOsXki6/Pn3APeqxCma62nXIcmZWdu1DlHWS74umVQ==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+      zod: ^3 >=3.22.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+      zod:
+        optional: true
+    dependencies:
+      typescript: 5.2.2
+    dev: true
 
   /abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
