@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -47,7 +48,7 @@ func setupSequencerTest(t Testing, sd *e2eutils.SetupData, log log.Logger) (*L1M
 	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	sequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), l2Cl, sd.RollupCfg, 0)
+	sequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), plasma.Disabled, l2Cl, sd.RollupCfg, 0)
 	return miner, engine, sequencer
 }
 
@@ -61,7 +62,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 
@@ -110,7 +111,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 	sequencer.ActL1HeadSignal(t)
 
 	// Make blocks up till the sequencer drift is about to surpass, but keep the old L1 origin
-	for sequencer.SyncStatus().UnsafeL2.Time+sd.RollupCfg.BlockTime <= origin.Time+sd.RollupCfg.MaxSequencerDrift {
+	for sequencer.SyncStatus().UnsafeL2.Time+sd.RollupCfg.BlockTime <= origin.Time+sd.ChainSpec.MaxSequencerDrift(origin.Time) {
 		sequencer.ActL2KeepL1Origin(t)
 		makeL2BlockWithAliceTx()
 		require.Equal(t, uint64(1), sequencer.SyncStatus().UnsafeL2.L1Origin.Number, "expected to keep old L1 origin")
@@ -129,7 +130,7 @@ func TestL2Sequencer_SequencerOnlyReorg(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	miner, _, sequencer := setupSequencerTest(t, sd, log)
 
 	// Sequencer at first only recognizes the genesis as safe.

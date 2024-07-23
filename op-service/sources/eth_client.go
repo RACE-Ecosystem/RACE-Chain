@@ -137,6 +137,9 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 
 	client = LimitRPC(client, config.MaxConcurrentRequests)
 	recProvider := newRecProviderFromConfig(client, log, metrics, config)
+	if recProvider.isInnerNil() {
+		return nil, fmt.Errorf("failed to open RethDB")
+	}
 	return &EthClient{
 		client:            client,
 		recProvider:       recProvider,
@@ -317,16 +320,11 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 		return nil, nil, fmt.Errorf("querying block: %w", err)
 	}
 
-	txHashes, block := eth.TransactionsToHashes(txs), eth.ToBlockID(info)
-	receipts, err := s.recProvider.FetchReceipts(ctx, block, txHashes)
+	txHashes, _ := eth.TransactionsToHashes(txs), eth.ToBlockID(info)
+	receipts, err := s.recProvider.FetchReceipts(ctx, info, txHashes)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	if err := validateReceipts(block, info.ReceiptHash(), txHashes, receipts); err != nil {
-		return info, nil, fmt.Errorf("invalid receipts: %w", err)
-	}
-
 	return info, receipts, nil
 }
 

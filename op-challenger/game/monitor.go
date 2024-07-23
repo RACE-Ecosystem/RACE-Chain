@@ -23,7 +23,12 @@ type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
 type gameSource interface {
-	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockHash common.Hash) ([]types.GameMetadata, error)
+	GetGamesAtOrAfter(ctx context.Context, blockHash common.Hash, earliestTimestamp uint64) ([]types.GameMetadata, error)
+}
+
+type RWClock interface {
+	SetTime(uint64)
+	Now() time.Time
 }
 
 type gameScheduler interface {
@@ -40,7 +45,7 @@ type claimer interface {
 
 type gameMonitor struct {
 	logger           log.Logger
-	clock            clock.Clock
+	clock            RWClock
 	source           gameSource
 	scheduler        gameScheduler
 	preimages        preimageScheduler
@@ -67,7 +72,7 @@ func (s *headSource) SubscribeNewHead(ctx context.Context, ch chan<- *ethTypes.H
 
 func newGameMonitor(
 	logger log.Logger,
-	cl clock.Clock,
+	cl RWClock,
 	source gameSource,
 	scheduler gameScheduler,
 	preimages preimageScheduler,
@@ -103,25 +108,11 @@ func (m *gameMonitor) allowedGame(game common.Address) bool {
 	return false
 }
 
-func (m *gameMonitor) minGameTimestamp() uint64 {
-	if m.gameWindow.Seconds() == 0 {
-		return 0
-	}
-	// time: "To compute t-d for a duration d, use t.Add(-d)."
-	// https://pkg.go.dev/time#Time.Sub
-	if m.clock.Now().Unix() > int64(m.gameWindow.Seconds()) {
-		return uint64(m.clock.Now().Add(-m.gameWindow).Unix())
-	}
-	return 0
-}
-
 func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, blockNumber uint64) error {
-	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), blockHash)
+	minGameTimestamp := clock.MinCheckedTimestamp(m.clock, m.gameWindow)
+	games, err := m.source.GetGamesAtOrAfter(ctx, blockHash, minGameTimestamp)
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
-	}
-	if err := m.claimer.Schedule(blockNumber, games); err != nil {
-		return fmt.Errorf("failed to schedule bond claims: %w", err)
 	}
 	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
@@ -130,6 +121,9 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 			continue
 		}
 		gamesToPlay = append(gamesToPlay, game)
+	}
+	if err := m.claimer.Schedule(blockNumber, gamesToPlay); err != nil {
+		return fmt.Errorf("failed to schedule bond claims: %w", err)
 	}
 	if err := m.scheduler.Schedule(gamesToPlay, blockNumber); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")
@@ -140,6 +134,7 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, 
 }
 
 func (m *gameMonitor) onNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
+	m.clock.SetTime(sig.Time)
 	if err := m.progressGames(ctx, sig.Hash, sig.Number); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
 	}

@@ -8,16 +8,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var _ BondClaimer = (*claimer)(nil)
-
-type BondClaimer interface {
-	ClaimBonds(ctx context.Context, games []types.GameMetadata) error
+type TxSender interface {
+	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
 }
 
 type BondClaimMetrics interface {
@@ -25,58 +22,72 @@ type BondClaimMetrics interface {
 }
 
 type BondContract interface {
-	GetCredit(ctx context.Context, receipient common.Address) (*big.Int, error)
-	ClaimCredit(receipient common.Address) (txmgr.TxCandidate, error)
+	GetCredit(ctx context.Context, recipient common.Address) (*big.Int, types.GameStatus, error)
+	ClaimCreditTx(ctx context.Context, recipient common.Address) (txmgr.TxCandidate, error)
 }
 
-type claimer struct {
-	logger  log.Logger
-	metrics BondClaimMetrics
+type BondContractCreator func(game types.GameMetadata) (BondContract, error)
 
-	caller   *batching.MultiCaller
-	txSender types.TxSender
+type Claimer struct {
+	logger          log.Logger
+	metrics         BondClaimMetrics
+	contractCreator BondContractCreator
+	txSender        TxSender
+	claimants       []common.Address
 }
 
-func NewBondClaimer(l log.Logger, m BondClaimMetrics, c *batching.MultiCaller, txSender types.TxSender) *claimer {
-	return &claimer{
-		logger:   l,
-		metrics:  m,
-		caller:   c,
-		txSender: txSender,
+var _ BondClaimer = (*Claimer)(nil)
+
+func NewBondClaimer(l log.Logger, m BondClaimMetrics, contractCreator BondContractCreator, txSender TxSender, claimants ...common.Address) *Claimer {
+	return &Claimer{
+		logger:          l,
+		metrics:         m,
+		contractCreator: contractCreator,
+		txSender:        txSender,
+		claimants:       claimants,
 	}
 }
 
-func (c *claimer) ClaimBonds(ctx context.Context, games []types.GameMetadata) (err error) {
+func (c *Claimer) ClaimBonds(ctx context.Context, games []types.GameMetadata) (err error) {
 	for _, game := range games {
-		err = errors.Join(err, c.claimBond(ctx, game.Proxy))
+		for _, claimant := range c.claimants {
+			err = errors.Join(err, c.claimBond(ctx, game, claimant))
+		}
 	}
 	return err
 }
 
-func (c *claimer) claimBond(ctx context.Context, gameAddr common.Address) error {
-	c.logger.Debug("attempting to claim bonds for", "game", gameAddr)
+func (c *Claimer) claimBond(ctx context.Context, game types.GameMetadata, addr common.Address) error {
+	c.logger.Debug("Attempting to claim bonds for", "game", game.Proxy, "addr", addr)
 
-	contract, err := contracts.NewFaultDisputeGameContract(gameAddr, c.caller)
+	contract, err := c.contractCreator(game)
 	if err != nil {
-		return fmt.Errorf("failed to create contract: %w", err)
+		return fmt.Errorf("failed to create bond contract: %w", err)
 	}
 
-	credit, err := contract.GetCredit(ctx, c.txSender.From())
+	credit, status, err := contract.GetCredit(ctx, addr)
 	if err != nil {
 		return fmt.Errorf("failed to get credit: %w", err)
 	}
 
+	if status == types.GameStatusInProgress {
+		c.logger.Debug("Not claiming credit from in progress game", "game", game.Proxy, "addr", addr, "status", status)
+		return nil
+	}
 	if credit.Cmp(big.NewInt(0)) == 0 {
-		c.logger.Debug("no credit to claim", "game", gameAddr)
+		c.logger.Debug("No credit to claim", "game", game.Proxy, "addr", addr)
 		return nil
 	}
 
-	candidate, err := contract.ClaimCredit(c.txSender.From())
-	if err != nil {
+	candidate, err := contract.ClaimCreditTx(ctx, addr)
+	if errors.Is(err, contracts.ErrSimulationFailed) {
+		c.logger.Debug("Credit still locked", "game", game.Proxy, "addr", addr)
+		return nil
+	} else if err != nil {
 		return fmt.Errorf("failed to create credit claim tx: %w", err)
 	}
 
-	if _, err = c.txSender.SendAndWait("claim credit", candidate); err != nil {
+	if err = c.txSender.SendAndWaitSimple("claim credit", candidate); err != nil {
 		return fmt.Errorf("failed to claim credit: %w", err)
 	}
 

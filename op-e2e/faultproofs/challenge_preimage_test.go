@@ -15,12 +15,12 @@ import (
 func TestChallengeLargePreimages_ChallengeFirst(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, _ := startFaultDisputeSystem(t)
+	sys, _ := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	disputeGameFactory.StartChallenger(ctx, "Challenger",
-		challenger.WithAlphabet(sys.RollupEndpoint("sequencer")),
+		challenger.WithAlphabet(),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
 	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
@@ -34,11 +34,11 @@ func TestChallengeLargePreimages_ChallengeFirst(t *testing.T) {
 func TestChallengeLargePreimages_ChallengeMiddle(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, _ := startFaultDisputeSystem(t)
+	sys, _ := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	disputeGameFactory.StartChallenger(ctx, "Challenger",
-		challenger.WithAlphabet(sys.RollupEndpoint("sequencer")),
+		challenger.WithAlphabet(),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
 	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
@@ -52,15 +52,15 @@ func TestChallengeLargePreimages_ChallengeMiddle(t *testing.T) {
 func TestChallengeLargePreimages_ChallengeLast(t *testing.T) {
 	op_e2e.InitParallel(t)
 	ctx := context.Background()
-	sys, _ := startFaultDisputeSystem(t)
+	sys, _ := StartFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	disputeGameFactory.StartChallenger(ctx, "Challenger",
-		challenger.WithAlphabet(sys.RollupEndpoint("sequencer")),
+		challenger.WithAlphabet(),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
 	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
-		preimage.WithReplacedCommitment(132, common.Hash{0xaa}))
+		preimage.WithLastCommitment(common.Hash{0xaa}))
 
 	require.NotEqual(t, ident.Claimant, common.Address{})
 

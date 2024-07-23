@@ -6,13 +6,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +37,7 @@ func TestChallenge(t *testing.T) {
 		},
 	}
 
-	logger := testlog.Logger(t, log.LvlInfo)
+	logger := testlog.Logger(t, log.LevelInfo)
 
 	t.Run("SendChallenges", func(t *testing.T) {
 		verifier, sender, oracle, challenger := setupChallengerTest(logger)
@@ -66,7 +64,7 @@ func TestChallenge(t *testing.T) {
 	})
 
 	t.Run("LogErrorWhenCreateTxFails", func(t *testing.T) {
-		logs := testlog.Capture(logger)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 
 		verifier, _, oracle, challenger := setupChallengerTest(logger)
 		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: keccakTypes.StateSnapshot{0x01}}
@@ -74,12 +72,14 @@ func TestChallenge(t *testing.T) {
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
 
-		errLog := logs.FindLog(log.LvlError, "Failed to create challenge transaction")
-		require.ErrorIs(t, errLog.GetContextValue("err").(error), oracle.err)
+		levelFilter := testlog.NewLevelFilter(log.LevelError)
+		msgFilter := testlog.NewMessageFilter("Failed to create challenge transaction")
+		errLog := logs.FindLog(levelFilter, msgFilter)
+		require.ErrorIs(t, errLog.AttrValue("err").(error), oracle.err)
 	})
 
 	t.Run("LogErrorWhenVerifierFails", func(t *testing.T) {
-		logs := testlog.Capture(logger)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 
 		verifier, _, oracle, challenger := setupChallengerTest(logger)
 		verifier.challenges[preimages[1].LargePreimageIdent] = keccakTypes.Challenge{StateMatrix: keccakTypes.StateSnapshot{0x01}}
@@ -87,22 +87,28 @@ func TestChallenge(t *testing.T) {
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
 
-		errLog := logs.FindLog(log.LvlError, "Failed to verify large preimage")
-		require.ErrorIs(t, errLog.GetContextValue("err").(error), verifier.err)
+		levelFilter := testlog.NewLevelFilter(log.LevelError)
+		msgFilter := testlog.NewMessageFilter("Failed to verify large preimage")
+		errLog := logs.FindLog(levelFilter, msgFilter)
+		require.ErrorIs(t, errLog.AttrValue("err").(error), verifier.err)
 	})
 
 	t.Run("DoNotLogErrValid", func(t *testing.T) {
-		logs := testlog.Capture(logger)
+		logger, logs := testlog.CaptureLogger(t, log.LevelInfo)
 
 		_, _, oracle, challenger := setupChallengerTest(logger)
 		// All preimages are valid
 		err := challenger.Challenge(context.Background(), common.Hash{0xaa}, oracle, preimages)
 		require.NoError(t, err)
 
-		errLog := logs.FindLog(log.LvlError, "Failed to verify large preimage")
+		levelFilter := testlog.NewLevelFilter(log.LevelError)
+		msgFilter := testlog.NewMessageFilter("Failed to verify large preimage")
+		errLog := logs.FindLog(levelFilter, msgFilter)
 		require.Nil(t, errLog)
 
-		dbgLog := logs.FindLog(log.LvlDebug, "Preimage is valid")
+		levelFilter = testlog.NewLevelFilter(log.LevelDebug)
+		msgFilter = testlog.NewMessageFilter("Preimage is valid")
+		dbgLog := logs.FindLog(levelFilter, msgFilter)
 		require.NotNil(t, dbgLog)
 	})
 }
@@ -113,16 +119,22 @@ func setupChallengerTest(logger log.Logger) (*stubVerifier, *stubSender, *stubCh
 	}
 	sender := &stubSender{}
 	oracle := &stubChallengerOracle{}
-	challenger := NewPreimageChallenger(logger, verifier, sender)
+	metrics := &mockChallengeMetrics{}
+	challenger := NewPreimageChallenger(logger, metrics, verifier, sender)
 	return verifier, sender, oracle, challenger
 }
+
+type mockChallengeMetrics struct{}
+
+func (m *mockChallengeMetrics) RecordPreimageChallenged()      {}
+func (m *mockChallengeMetrics) RecordPreimageChallengeFailed() {}
 
 type stubVerifier struct {
 	challenges map[keccakTypes.LargePreimageIdent]keccakTypes.Challenge
 	err        error
 }
 
-func (s *stubVerifier) CreateChallenge(_ context.Context, _ common.Hash, _ fetcher.Oracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error) {
+func (s *stubVerifier) CreateChallenge(_ context.Context, _ common.Hash, _ VerifierPreimageOracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error) {
 	if s.err != nil {
 		return keccakTypes.Challenge{}, s.err
 	}
@@ -138,12 +150,12 @@ type stubSender struct {
 	sent [][]txmgr.TxCandidate
 }
 
-func (s *stubSender) SendAndWait(_ string, txs ...txmgr.TxCandidate) ([]*types.Receipt, error) {
+func (s *stubSender) SendAndWaitSimple(_ string, txs ...txmgr.TxCandidate) error {
 	if s.err != nil {
-		return nil, s.err
+		return s.err
 	}
 	s.sent = append(s.sent, txs)
-	return nil, nil
+	return nil
 }
 
 type stubChallengerOracle struct {

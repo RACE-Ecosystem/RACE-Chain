@@ -61,7 +61,7 @@ func newTestHarnessWithConfig(t *testing.T, cfg Config) *testHarness {
 		name:    "TEST",
 		cfg:     cfg,
 		backend: cfg.Backend,
-		l:       testlog.Logger(t, log.LvlCrit),
+		l:       testlog.Logger(t, log.LevelCrit),
 		metr:    &metrics.NoopTxMetrics{},
 	}
 
@@ -305,7 +305,7 @@ func (*mockBackend) ChainID(ctx context.Context) (*big.Int, error) {
 
 // TransactionReceipt queries the mockBackend for a mined txHash. If none is found, nil is returned
 // for both return values. Otherwise, it returns a receipt containing the txHash, the gasFeeCap
-// used in GasUsed, and the blobFeeCap in CumuluativeGasUsed to make the values accessible from our
+// used in GasUsed, and the blobFeeCap in CumulativeGasUsed to make the values accessible from our
 // test framework.
 func (b *mockBackend) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	b.mu.RLock()
@@ -392,7 +392,24 @@ func TestTxMgrNeverConfirmCancel(t *testing.T) {
 	require.Nil(t, receipt)
 }
 
-// TestTxMgrConfirmsAtMaxGasPrice asserts that Send properly returns the max gas
+// TestAlreadyReserved tests that AlreadyReserved error results in immediate abort of transaction
+// sending.
+func TestAlreadyReserved(t *testing.T) {
+	conf := configWithNumConfs(1)
+	h := newTestHarnessWithConfig(t, conf)
+
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		return ErrAlreadyReserved
+	}
+	h.backend.setTxSender(sendTx)
+
+	_, err := h.mgr.Send(context.Background(), TxCandidate{
+		To: &common.Address{},
+	})
+	require.ErrorIs(t, err, ErrAlreadyReserved)
+}
+
+// TestTxMgrConfirmsAtHigherGasPrice asserts that Send properly returns the max gas
 // price receipt if none of the lower gas price txs were mined.
 func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {
 	t.Parallel()
@@ -422,7 +439,7 @@ func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
 }
 
-// TestTxMgrConfirmsBlobTxAtMaxGasPrice asserts that Send properly returns the max gas price
+// TestTxMgrConfirmsBlobTxAtHigherGasPrice asserts that Send properly returns the max gas price
 // receipt if none of the lower gas price txs were mined when attempting to send a blob tx.
 func TestTxMgrConfirmsBlobTxAtHigherGasPrice(t *testing.T) {
 	t.Parallel()
@@ -828,7 +845,7 @@ func TestWaitMinedMultipleConfs(t *testing.T) {
 func TestManagerErrsOnZeroCLIConfs(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), &metrics.NoopTxMetrics{}, CLIConfig{})
+	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, CLIConfig{})
 	require.Error(t, err)
 }
 
@@ -837,7 +854,7 @@ func TestManagerErrsOnZeroCLIConfs(t *testing.T) {
 func TestManagerErrsOnZeroConfs(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LvlCrit), &metrics.NoopTxMetrics{}, Config{})
+	_, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, Config{})
 	require.Error(t, err)
 }
 
@@ -940,7 +957,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 		},
 		name:    "TEST",
 		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LvlCrit),
+		l:       testlog.Logger(t, log.LevelCrit),
 		metr:    &metrics.NoopTxMetrics{},
 	}
 
@@ -978,7 +995,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 		},
 		name:    "TEST",
 		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LvlCrit),
+		l:       testlog.Logger(t, log.LevelCrit),
 		metr:    &metrics.NoopTxMetrics{},
 	}
 
@@ -1149,7 +1166,7 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 		},
 		name:    "TEST",
 		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LvlCrit),
+		l:       testlog.Logger(t, log.LevelCrit),
 		metr:    &metrics.NoopTxMetrics{},
 	}
 	lastGoodTx := types.NewTx(&types.DynamicFeeTx{

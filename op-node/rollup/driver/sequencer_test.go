@@ -70,7 +70,7 @@ func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2Block
 	_, _ = crand.Read(m.buildingID[:])
 	m.buildingOnto = parent
 	m.buildingSafe = updateSafe
-	m.buildingAttrs = attrs.Attributes()
+	m.buildingAttrs = attrs.Attributes
 	m.buildingStart = m.timeNow()
 	return derive.BlockInsertOK, nil
 }
@@ -171,7 +171,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 	l1Time := uint64(100000)
 
 	// mute errors. We expect a lot of the mocked errors to cause error-logs. We check chain health at the end of the test.
-	log := testlog.Logger(t, log.LvlCrit)
+	log := testlog.Logger(t, log.LevelCrit)
 
 	cfg := &rollup.Config{
 		Genesis: rollup.Genesis{

@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -25,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const MinPreimageSize = 18000
+const MinPreimageSize = 10000
 
 type Helper struct {
 	t              *testing.T
@@ -42,8 +43,7 @@ func NewHelper(t *testing.T, opts *bind.TransactOpts, client *ethclient.Client, 
 	oracleBindings, err := bindings.NewPreimageOracle(addr, client)
 	require.NoError(err)
 
-	oracle, err := contracts.NewPreimageOracleContract(addr, batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize))
-	require.NoError(err)
+	oracle := contracts.NewPreimageOracleContract(addr, batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize))
 	return &Helper{
 		t:              t,
 		require:        require,
@@ -68,16 +68,29 @@ func WithReplacedCommitment(idx uint64, value common.Hash) InputModifier {
 	}
 }
 
+func WithLastCommitment(value common.Hash) InputModifier {
+	return func(startBlock uint64, input *types.InputData) {
+		if input.Finalize {
+			input.Commitments[len(input.Commitments)-1] = value
+		}
+	}
+}
+
 // UploadLargePreimage inits the preimage upload and uploads the leaves, starting the challenge period.
 // Squeeze is not called by this method as the challenge period has not yet elapsed.
 func (h *Helper) UploadLargePreimage(ctx context.Context, dataSize int, modifiers ...InputModifier) types.LargePreimageIdent {
 	data := testutils.RandomData(rand.New(rand.NewSource(1234)), dataSize)
 	s := matrix.NewStateMatrix()
 	uuid := big.NewInt(h.uuidProvider.Add(1))
+	bondValue, err := h.oracleBindings.MINBONDSIZE(&bind.CallOpts{})
+	h.require.NoError(err)
+	h.opts.Value = bondValue
 	tx, err := h.oracleBindings.InitLPP(h.opts, uuid, 32, uint32(len(data)))
 	h.require.NoError(err)
 	_, err = wait.ForReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err)
+	h.opts.Value = big.NewInt(0)
+
 	startBlock := big.NewInt(0)
 	totalBlocks := len(data) / types.BlockSize
 	in := bytes.NewReader(data)
@@ -103,6 +116,7 @@ func (h *Helper) UploadLargePreimage(ctx context.Context, dataSize int, modifier
 			break
 		}
 	}
+
 	return types.LargePreimageIdent{
 		Claimant: h.opts.From,
 		UUID:     uuid,
@@ -113,7 +127,7 @@ func (h *Helper) WaitForChallenged(ctx context.Context, ident types.LargePreimag
 	timedCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		metadata, err := h.oracle.GetProposalMetadata(ctx, batching.BlockLatest, ident)
+		metadata, err := h.oracle.GetProposalMetadata(ctx, rpcblock.Latest, ident)
 		if err != nil {
 			return false, err
 		}

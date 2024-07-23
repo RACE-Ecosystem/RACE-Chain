@@ -6,37 +6,42 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/fetcher"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type Oracle interface {
-	fetcher.Oracle
+	VerifierPreimageOracle
 	ChallengeTx(ident keccakTypes.LargePreimageIdent, challenge keccakTypes.Challenge) (txmgr.TxCandidate, error)
 }
 
+type ChallengeMetrics interface {
+	RecordPreimageChallenged()
+	RecordPreimageChallengeFailed()
+}
+
 type Verifier interface {
-	CreateChallenge(ctx context.Context, blockHash common.Hash, oracle fetcher.Oracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error)
+	CreateChallenge(ctx context.Context, blockHash common.Hash, oracle VerifierPreimageOracle, preimage keccakTypes.LargePreimageMetaData) (keccakTypes.Challenge, error)
 }
 
 type Sender interface {
-	SendAndWait(txPurpose string, txs ...txmgr.TxCandidate) ([]*types.Receipt, error)
+	SendAndWaitSimple(txPurpose string, txs ...txmgr.TxCandidate) error
 }
 
 type PreimageChallenger struct {
 	log      log.Logger
+	metrics  ChallengeMetrics
 	verifier Verifier
 	sender   Sender
 }
 
-func NewPreimageChallenger(logger log.Logger, verifier Verifier, sender Sender) *PreimageChallenger {
+func NewPreimageChallenger(logger log.Logger, metrics ChallengeMetrics, verifier Verifier, sender Sender) *PreimageChallenger {
 	return &PreimageChallenger{
 		log:      logger,
+		metrics:  metrics,
 		verifier: verifier,
 		sender:   sender,
 	}
@@ -74,10 +79,12 @@ func (c *PreimageChallenger) Challenge(ctx context.Context, blockHash common.Has
 	wg.Wait()
 	c.log.Debug("Created preimage challenge transactions", "count", len(txs))
 	if len(txs) > 0 {
-		_, err := c.sender.SendAndWait("challenge preimages", txs...)
+		err := c.sender.SendAndWaitSimple("challenge preimages", txs...)
 		if err != nil {
+			c.metrics.RecordPreimageChallengeFailed()
 			return fmt.Errorf("failed to send challenge txs: %w", err)
 		}
+		c.metrics.RecordPreimageChallenged()
 	}
 	return nil
 }

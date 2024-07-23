@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -54,7 +53,7 @@ func TestDirectPreimageUploader_UploadPreimage(t *testing.T) {
 }
 
 func newTestDirectPreimageUploader(t *testing.T) (*DirectPreimageUploader, *mockTxSender, *mockPreimageGameContract) {
-	logger := testlog.Logger(t, log.LvlError)
+	logger := testlog.Logger(t, log.LevelError)
 	txMgr := &mockTxSender{}
 	contract := &mockPreimageGameContract{}
 	return NewDirectPreimageUploader(logger, txMgr, contract), txMgr, contract
@@ -83,13 +82,13 @@ func (s *mockTxSender) From() common.Address {
 	return common.Address{}
 }
 
-func (s *mockTxSender) SendAndWait(_ string, _ ...txmgr.TxCandidate) ([]*ethtypes.Receipt, error) {
+func (s *mockTxSender) SendAndWaitSimple(_ string, _ ...txmgr.TxCandidate) error {
 	s.sends++
 	if s.sendFails {
-		return nil, mockTxMgrSendError
+		return mockTxMgrSendError
 	}
 	if s.statusFail {
-		return []*ethtypes.Receipt{{Status: ethtypes.ReceiptStatusFailed}}, nil
+		return errors.New("transaction reverted")
 	}
-	return []*ethtypes.Receipt{{Status: ethtypes.ReceiptStatusSuccessful}}, nil
+	return nil
 }

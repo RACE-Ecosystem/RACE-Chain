@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -27,7 +28,7 @@ func setupReorgTest(t Testing, config *e2eutils.TestParams, deltaTimeOffset *hex
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	return setupReorgTestActors(t, dp, sd, log)
 }
@@ -381,7 +382,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 
 	// Set up alice
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &BasicUserEnv[*L2Bindings]{
 		EthCl:          l2Client,
@@ -606,7 +607,7 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	// L1
 	miner := NewL1Miner(t, log, sd.L1Cfg)
@@ -617,7 +618,7 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	engRpc := &rpcWrapper{seqEng.RPCClient()}
 	l2Cl, err := sources.NewEngineClient(engRpc, log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
-	sequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), l2Cl, sd.RollupCfg, 0)
+	sequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), plasma.Disabled, l2Cl, sd.RollupCfg, 0)
 
 	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
 		sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
@@ -694,7 +695,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 
 	sd, _, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
@@ -705,7 +706,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.NoError(t, err)
 	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
 	require.NoError(t, err)
-	altSequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), altSeqEngCl, sd.RollupCfg, 0)
+	altSequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), plasma.Disabled, altSeqEngCl, sd.RollupCfg, 0)
 	altBatcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
 		altSequencer.RollupClient(), miner.EthClient(), altSeqEng.EthClient(), altSeqEng.EngineClient(t, sd.RollupCfg))
 
@@ -806,7 +807,7 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 	sd, dp, miner, sequencer, seqEngine, verifier, _, batcher := setupReorgTest(t, &testingParams, deltaTimeOffset)
 	l2Client := seqEngine.EthClient()
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	l2UserEnv := &BasicUserEnv[*L2Bindings]{
 		EthCl:          l2Client,

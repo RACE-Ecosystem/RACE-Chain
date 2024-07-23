@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"context"
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"fmt"
@@ -40,7 +41,7 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	// do not activate Delta hardfork for verifier
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = nil
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
@@ -131,7 +132,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	deltaOffset := hexutil.Uint64(6)
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &deltaOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	minerCl := miner.EthClient()
@@ -239,7 +240,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	// activate Delta hardfork for verifier.
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
@@ -325,7 +326,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 	// Activate Delta hardfork for verifier.
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
@@ -415,7 +416,7 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 	// Activate Delta hardfork
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
@@ -478,7 +479,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	// Activate Delta hardfork
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
@@ -501,6 +502,10 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 		addr := crypto.PubkeyToAddress(privateKey.PublicKey)
 		require.NoError(t, err)
 		addrs[i] = addr
+
+		bal, err := cl.BalanceAt(context.Background(), addr, nil)
+		require.NoError(gt, err)
+		require.Equal(gt, 1, bal.Cmp(common.Big0), "account %d must have non-zero balance, address: %s, balance: %d", i, addr, bal)
 	}
 
 	sequencer.ActL2PipelineFull(t)
@@ -575,7 +580,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 
 func TestBatchEquivalence(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)

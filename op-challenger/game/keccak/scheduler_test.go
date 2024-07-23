@@ -2,13 +2,15 @@ package keccak
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"sync"
 	"testing"
 	"time"
 
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,9 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var stubChallengePeriod = uint64(3600)
+
 func TestScheduleNextCheck(t *testing.T) {
 	ctx := context.Background()
-	logger := testlog.Logger(t, log.LvlInfo)
+	currentTimestamp := uint64(1240)
+	logger := testlog.Logger(t, log.LevelInfo)
 	preimage1 := keccakTypes.LargePreimageMetaData{ // Incomplete so won't be verified
 		LargePreimageIdent: keccakTypes.LargePreimageIdent{
 			Claimant: common.Address{0xab},
@@ -30,7 +35,7 @@ func TestScheduleNextCheck(t *testing.T) {
 			Claimant: common.Address{0xab},
 			UUID:     big.NewInt(222),
 		},
-		Timestamp: 1234,
+		Timestamp: currentTimestamp - 10,
 		Countered: true,
 	}
 	preimage3 := keccakTypes.LargePreimageMetaData{
@@ -38,13 +43,14 @@ func TestScheduleNextCheck(t *testing.T) {
 			Claimant: common.Address{0xdd},
 			UUID:     big.NewInt(333),
 		},
-		Timestamp: 1234,
+		Timestamp: currentTimestamp - 10,
 	}
 	oracle := &stubOracle{
 		images: []keccakTypes.LargePreimageMetaData{preimage1, preimage2, preimage3},
 	}
+	cl := clock.NewDeterministicClock(time.Unix(int64(currentTimestamp), 0))
 	challenger := &stubChallenger{}
-	scheduler := NewLargePreimageScheduler(logger, []keccakTypes.LargePreimageOracle{oracle}, challenger)
+	scheduler := NewLargePreimageScheduler(logger, cl, OracleSourceArray{oracle}, challenger)
 	scheduler.Start(ctx)
 	defer scheduler.Close()
 	err := scheduler.Schedule(common.Hash{0xaa}, 3)
@@ -64,9 +70,14 @@ type stubOracle struct {
 	addr              common.Address
 	getPreimagesCount int
 	images            []keccakTypes.LargePreimageMetaData
+	treeRoots         map[keccakTypes.LargePreimageIdent]common.Hash
 }
 
-func (s *stubOracle) GetInputDataBlocks(_ context.Context, _ batching.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
+func (s *stubOracle) ChallengePeriod(_ context.Context) (uint64, error) {
+	return stubChallengePeriod, nil
+}
+
+func (s *stubOracle) GetInputDataBlocks(_ context.Context, _ rpcblock.Block, _ keccakTypes.LargePreimageIdent) ([]uint64, error) {
 	panic("not supported")
 }
 
@@ -95,6 +106,14 @@ func (s *stubOracle) ChallengeTx(_ keccakTypes.LargePreimageIdent, _ keccakTypes
 	panic("not supported")
 }
 
+func (s *stubOracle) GetProposalTreeRoot(_ context.Context, _ rpcblock.Block, ident keccakTypes.LargePreimageIdent) (common.Hash, error) {
+	root, ok := s.treeRoots[ident]
+	if ok {
+		return root, nil
+	}
+	return common.Hash{}, errors.New("unknown tree root")
+}
+
 type stubChallenger struct {
 	m       sync.Mutex
 	checked []keccakTypes.LargePreimageMetaData
@@ -113,4 +132,10 @@ func (s *stubChallenger) Checked() []keccakTypes.LargePreimageMetaData {
 	v := make([]keccakTypes.LargePreimageMetaData, len(s.checked))
 	copy(v, s.checked)
 	return v
+}
+
+type OracleSourceArray []keccakTypes.LargePreimageOracle
+
+func (o OracleSourceArray) Oracles() []keccakTypes.LargePreimageOracle {
+	return o
 }

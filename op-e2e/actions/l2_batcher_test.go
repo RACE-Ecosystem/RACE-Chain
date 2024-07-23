@@ -83,7 +83,7 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
@@ -152,7 +152,7 @@ func L2Finalization(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
 	sequencer.ActL2PipelineFull(t)
@@ -180,6 +180,7 @@ func L2Finalization(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sequencer.ActL2PipelineFull(t)
 	sequencer.ActL1FinalizedSignal(t)
 	sequencer.ActL1SafeSignal(t)
+	sequencer.ActL2PipelineFull(t) // ensure that the forkchoice changes have been applied to the engine
 	require.Equal(t, uint64(2), sequencer.SyncStatus().SafeL1.Number)
 	require.Equal(t, uint64(1), sequencer.SyncStatus().FinalizedL1.Number)
 	require.Equal(t, uint64(0), sequencer.SyncStatus().FinalizedL2.Number, "L2 block has to be included on L1 before it can be finalized")
@@ -227,6 +228,7 @@ func L2Finalization(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sequencer.ActL1FinalizedSignal(t)
 	sequencer.ActL1SafeSignal(t)
 	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t) // ensure that the forkchoice changes have been applied to the engine
 	require.Equal(t, uint64(6), sequencer.SyncStatus().HeadL1.Number)
 	require.Equal(t, uint64(4), sequencer.SyncStatus().SafeL1.Number)
 	require.Equal(t, uint64(3), sequencer.SyncStatus().FinalizedL1.Number)
@@ -244,7 +246,7 @@ func L2Finalization(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// If we get this false signal, we shouldn't finalize the L2 chain.
 	altBlock4 := sequencer.SyncStatus().SafeL1
 	altBlock4.Hash = common.HexToHash("0xdead")
-	sequencer.derivation.Finalize(altBlock4)
+	sequencer.finalizer.Finalize(t.Ctx(), altBlock4)
 	sequencer.ActL2PipelineFull(t)
 	require.Equal(t, uint64(3), sequencer.SyncStatus().FinalizedL1.Number)
 	require.Equal(t, heightToSubmit, sequencer.SyncStatus().FinalizedL2.Number, "unknown/bad finalized L1 blocks are ignored")
@@ -256,7 +258,7 @@ func L2FinalizationWithSparseL1(gt *testing.T, deltaTimeOffset *hexutil.Uint64) 
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
+	log := testlog.Logger(t, log.LevelDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
 	sequencer.ActL2PipelineFull(t)
@@ -314,7 +316,7 @@ func GarbageBatch(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	for _, garbageKind := range GarbageKinds {
 		sd := e2eutils.Setup(t, dp, defaultAlloc)
-		log := testlog.Logger(t, log.LvlError)
+		log := testlog.Logger(t, log.LevelError)
 		miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
 		_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
@@ -394,7 +396,7 @@ func ExtendedTimeWithoutL1Batches(gt *testing.T, deltaTimeOffset *hexutil.Uint64
 	dp := e2eutils.MakeDeployParams(t, p)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LevelError)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
 	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
@@ -450,7 +452,7 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LevelInfo)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
 	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
@@ -515,7 +517,7 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		sequencer.ActL2EndBlock(t)
 		for batcher.l2BufferedBlock.Number < sequencer.SyncStatus().UnsafeL2.Number {
 			// if we run out of space, close the channel and submit all the txs
-			if err := batcher.Buffer(t); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.CompressorFullErr) {
+			if err := batcher.Buffer(t); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrCompressorFull) {
 				log.Info("flushing filled channel to batch txs", "id", batcher.l2ChannelOut.ID())
 				batcher.ActL2ChannelClose(t)
 				for batcher.l2ChannelOut != nil {

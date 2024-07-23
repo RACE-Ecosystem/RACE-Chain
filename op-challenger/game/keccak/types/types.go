@@ -3,9 +3,10 @@ package types
 import (
 	"context"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -65,10 +66,10 @@ type LargePreimageMetaData struct {
 	Countered       bool
 }
 
-// ShouldVerify returns true if the preimage upload is complete and has not yet been countered.
-// Note that the challenge period for the preimage may have expired but the image not yet been finalized.
-func (m LargePreimageMetaData) ShouldVerify() bool {
-	return m.Timestamp > 0 && !m.Countered
+// ShouldVerify returns true if the preimage upload is complete, has not yet been countered, and the
+// challenge period has not yet elapsed.
+func (m LargePreimageMetaData) ShouldVerify(now time.Time, ignoreAfter time.Duration) bool {
+	return m.Timestamp > 0 && !m.Countered && m.Timestamp+uint64(ignoreAfter.Seconds()) > uint64(now.Unix())
 }
 
 type StateSnapshot [25]uint64
@@ -84,7 +85,7 @@ func (s StateSnapshot) Pack() []byte {
 
 type Challenge struct {
 	// StateMatrix is the packed state matrix preimage of the StateCommitment in Prestate
-	StateMatrix StateSnapshot // TODO(client-pod#480): Need a better representation of this
+	StateMatrix StateSnapshot
 
 	// Prestate is the valid leaf immediately prior to the first invalid leaf
 	Prestate      Leaf
@@ -98,7 +99,9 @@ type Challenge struct {
 type LargePreimageOracle interface {
 	Addr() common.Address
 	GetActivePreimages(ctx context.Context, blockHash common.Hash) ([]LargePreimageMetaData, error)
-	GetInputDataBlocks(ctx context.Context, block batching.Block, ident LargePreimageIdent) ([]uint64, error)
+	GetInputDataBlocks(ctx context.Context, block rpcblock.Block, ident LargePreimageIdent) ([]uint64, error)
+	GetProposalTreeRoot(ctx context.Context, block rpcblock.Block, ident LargePreimageIdent) (common.Hash, error)
 	DecodeInputData(data []byte) (*big.Int, InputData, error)
 	ChallengeTx(ident LargePreimageIdent, challenge Challenge) (txmgr.TxCandidate, error)
+	ChallengePeriod(ctx context.Context) (uint64, error)
 }
