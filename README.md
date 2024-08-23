@@ -168,7 +168,7 @@ QuickNode offers significant advantages for RACE developers:
 
 ### Getting Started
 To begin using QuickNode for your RACE projects:
- 1. Sign up for a [QuickNode account]()
+ 1. Sign up for a [QuickNode account](https://www.quicknode.com/)
  2. Select RACE as your blockchain
  3. Access your RPC endpoint and start building!
 
