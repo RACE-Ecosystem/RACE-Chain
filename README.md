@@ -23,6 +23,7 @@
   - [Production Releases](#production-releases)
   - [Development branch](#development-branch)
 - [License](#license)
+- [QuickNode Integration](#quick-node-integration)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -143,3 +144,39 @@ Feature branches are typically used when there are conflicts between 2 projects 
 ## License
 
 All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
+
+
+## Quick Node Integration
+
+QuickNode is a trusted infrastructure partner for the RACE chain, providing developers with powerful APIs to streamline their blockchain applications.
+
+### Supported Networks
+
+Develop on RACE with confidence, leveraging secure and scalable API endpoints.
+| Network | HTTPS | WSS | Supported APIs |
+|---------|-------|-----|----------------|
+| RACE Mainnet | ✅ | ✅ | JSON-RPC, WebSocket |
+| RACE Testnet | ✅ | ✅ | JSON-RPC, WebSocket |
+
+### Key Benefits for RACE Developers
+
+QuickNode offers significant advantages for RACE developers:
+ 1. High Performance: Low-latency, high-throughput nodes for optimal performance
+ 2. Reliability: 99.99% uptime guarantee with 24/7 infrastructure monitoring
+ 3. Scalability: Elastic infrastructure that grows with your project needs
+ 4. Multi-region Support: Global node distribution for reduced latency worldwide
+
+### Getting Started
+To begin using QuickNode for your RACE projects:
+ 1. Sign up for a [QuickNode account]()
+ 2. Select RACE as your blockchain
+ 3. Access your RPC endpoint and start building!
+
+For more details on QuickNode's RACE support and to explore potential partnership opportunities, please visit [QuickNode's RACE documentation](https://quicknode.com/docs)
+
+### Partnering for Progress
+RACE and QuickNode have partnered to offer significant benefits for developers:
+ 1. Enterprise Discount: Get a 15% discount on RACE RPC traffic and a 2-week free POC period
+ 2. Self-Service Offer: Enjoy 2 months free on our self-service plan.
+For more details on how to take advantage of these offers, click here (https://quicknode.notion.site/QuickNode-Benefits-for-RACE-Developers-2e4e73f7b7474e24abe8880ce9cdd433)
+
