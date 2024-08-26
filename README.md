@@ -146,7 +146,7 @@ Feature branches are typically used when there are conflicts between 2 projects 
 All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
 
 
-## Quick Node Integration
+## QuickNode Integration
 
 QuickNode is a trusted infrastructure partner for the RACE chain, providing developers with powerful APIs to streamline their blockchain applications.
 
